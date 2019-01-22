@@ -9,7 +9,11 @@ Based on available resources from the [Media Bias/Fact Check](http://www.mediabi
 
 Options 
 -----------------------------------------------------------------------------------------------
-
+Use different pre-trained word embeddings.
+1. word2vec - used to compute the average "word" vector, given a sentence (with simple words removed)
+2. doc2vec -
+3. Glove -
+4. BERT - 
 
 
 Setup and installation instructions
