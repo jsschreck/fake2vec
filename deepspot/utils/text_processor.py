@@ -1,6 +1,6 @@
 import os, sys, glob, re, nltk
 import pickle, string, unicodedata
-import contractions, inflect
+import contractions, inflect, traceback
 
 from unidecode import unidecode
 from nltk.corpus import stopwords
@@ -20,6 +20,28 @@ def tokenize_text(text):
 				continue
 			tokens.append(word.lower())
 	return tokens
+
+def tokenize_str(str_):
+	# keep only alphanumeric and punctations
+	str_ = re.sub(r'[^A-Za-z0-9(),.!?\'`]', ' ', str_)
+	# remove multiple whitespace characters
+	str_ = re.sub(r'\s{2,}', ' ', str_)
+	# punctations to tokens
+	str_ = re.sub(r'\(', ' ( ', str_)
+	str_ = re.sub(r'\)', ' ) ', str_)
+	str_ = re.sub(r',', ' , ', str_)
+	str_ = re.sub(r'\.', ' . ', str_)
+	str_ = re.sub(r'!', ' ! ', str_)
+	str_ = re.sub(r'\?', ' ? ', str_)
+	# split contractions into multiple tokens
+	str_ = re.sub(r'\'s', ' \'s', str_)
+	str_ = re.sub(r'\'ve', ' \'ve', str_)
+	str_ = re.sub(r'n\'t', ' n\'t', str_)
+	str_ = re.sub(r'\'re', ' \'re', str_)
+	str_ = re.sub(r'\'d', ' \'d', str_)
+	str_ = re.sub(r'\'ll', ' \'ll', str_)
+	# lower case
+	return str_.strip().lower().split()
 
 def remove_non_ascii(words):
 	"""Remove non-ASCII characters from list of tokenized words"""
@@ -44,23 +66,24 @@ def remove_punctuation(words):
     return new_words
 
 def replace_numbers(words):
-    """Replace all interger occurrences in list of tokenized words with textual representation"""
-    p = inflect.engine()
-    new_words = []
-    for word in words:
-        if word.isdigit():
-            new_word = p.number_to_words(word)
-            new_words.append(new_word)
-        else:
-            new_words.append(word)
-    return new_words
+	"""Replace all interger occurrences in list of tokenized words with textual representation"""
+	p = inflect.engine()
+	new_words = []
+	for word in words:
+		if word.isdigit():
+			try:
+				new_word = p.number_to_words(word)
+				new_words.append(new_word)
+			except:
+				# Sometimes fails, returning long numbers.
+				continue
+		else:
+			new_words.append(word)
+	return new_words
 
 def remove_stopwords(words):
     """Remove stop words from list of tokenized words"""
     new_words = [word for word in words if word not in stopwords.words('english')]
-    #for word in words:
-    #    if word not in stopwords.words('english'):
-    #        new_words.append(word)
     return new_words
 
 def stem_words(words):
@@ -93,6 +116,8 @@ def normalize(words):
 	words = replace_numbers(words)
 	words = remove_stopwords(words)
 	words = [word.strip('\n') for word in words]
+	words = [word.split('\n') for word in words]
+	words = [item for sublist in words for item in sublist]
 	words = [word for word in words if not word.isdigit()]
 	return words
 
@@ -114,49 +139,62 @@ class Website:
 		'''
 		self.load(newsFile)
 
-		self.token_strip = RegexpTokenizer(r'\w+')
-		self.stop_words = set(stopwords.words('english'))
-
-	def clean_sentence_word2vec(self, tokens = []):
+	def clean(self, tokens = []):
 		if not tokens: return None
 		tokens = normalize(tokens)
-		#tokens = cleanText(tokens)
-		#tokens = tokenize_text(tokens)
 		return tokens
 
 	def read_article(self, article):
 		# 'title', 'authors', 'text', 'top_image', 'movies', 'link', 'published', 'keywords', 'summary'
-		title = article['title']
-		sentences = article['text']
-		authors = article['authors']
-		date_published = article['published']
 
-		try:
+		# 1. Title
+		title = article['title']
+		if title:
+			# If no title, continue but set value = None ([])
+			title = self.clean(title.split(" "))
+		else:
+			title = []
+
+		# 2. Summary
+		summary = []
+		if 'summary' in article:
 			summary = article['summary']
-		except:
-			summary = []
-		try:
+			summary = self.clean(summary.split(" "))
+			if not summary: summary = []
+
+		# 3. Keywords
+		keywords = []
+		if 'keywords' in article:
 			keywords = article['keywords']
-		except:
-			keywords = []
+			keywords = self.clean(keywords)
+			if not keywords: keywords = []
+
+		# 4. Authors
+		authors = article['authors']
+		if not authors: authors = []
+
+		# 5. Date of publication
+		date_published = article['published']
+		if not date_published: date_published = []
 
 		# The authors and/or date published not always published.
 		# There are also erroneous "articles" that capture site information ... do not accept.
 		if not (authors or date_published):
 			return False
 
-		# If no title, continue but set value = None ([])
-		if title:
-			_title = []
-			for x in title.split():
-				if not x: continue
-				_title.append(self.clean_sentence_word2vec(x))
-			title = [item for sublist in _title for item in sublist]
-		else:
-			title = []
+		# 6. Sentences
+		sentences = article['text']
+		sentences = [self.clean(x.split(" ")) for x in sentences.split("\n") if x != '']
+		if not sentences: sentences = []
 
-		sentences = [self.clean_sentence_word2vec(x) for x in sentences.split("\n") if x != '']
-		wordlist  = list(set([item for sublist in title + sentences for item in sublist]))
+		# Document includes title, keywords, summary, sentences
+		try:
+			doc_words = title + keywords + summary + sentences
+		except Exception as E:
+			print("WARNING", E)
+			print(type(title),type(keywords),type(summary),type(sentences))
+
+		wordlist  = list(set([item for sublist in doc_words for item in sublist]))
 		[self.unique_words.add(word) for word in wordlist]
 
 		return title, authors, date_published, sentences, keywords, summary, wordlist
@@ -223,7 +261,6 @@ class Website:
 				self.articles = []
 
 class WordsContainer:
-
 	def __init__(self):
 
 		self.articles = {}
@@ -271,8 +308,11 @@ if __name__ == '__main__':
 	NCPUS = psutil.cpu_count()
 	pool = Pool(NCPUS)
 
+	# Load data files, created by scraper.py.
 	fileNames = glob.glob('data/raw/*.pkl')
-	#fileNames = ['data/raw/villagevoice.com.pkl']
+	if not fileNames:
+		print("You need to scrape websites first. python utils/scraper.py")
+		sys.exit()
 
 	print("Processing/loading {} news-websites ...".format(len(fileNames)))
 	print("... using {} CPUS".format(NCPUS))
@@ -285,6 +325,6 @@ if __name__ == '__main__':
 	dataFrame = WordsContainer()
 	for result in results:
 		dataFrame.add(result)
-	dataFrame.save('data/processed_articles.pkl')
+	dataFrame.save('data/Doc2vecTrainingDataProcessed.pkl')
 
 	print("... finished in {}".format(time.time()-start))
