@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset="utf-8" />
+  <title>Publisher details</title>
+  <link type="text/css" rel="stylesheet"
+        href="{{ url_for('static',
+              filename='style.css')}}" />
+</head>
+
+<body>
+  <div class="table">
+    {% block body %}
+    {{ data|safe }}
+    {% endblock %}
+  </div>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset="utf-8" />
+  <!-- <title>Welcome!</title> -->
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans|Roboto" rel="stylesheet">
+  <link type="text/css" rel="stylesheet"
+        href="{{ url_for('static', filename='style.css')}}" />
+  <link type="text/css" rel="stylesheet"
+        href="{{ url_for('static', filename='tables.css')}}" />
+</head>
+<body>
+
+<h1>Text query</h1>
+{{ query | truncate(150) }}
+
+
+<h1>Evaluation summary</h1>
+{{summary}}
+
+<h1>Factual assessment</h1>
+<table id = "results">
+      {% for row in fact_input %}
+      <tr>
+        <td>{{ row[0] }}</td><td>{{ row[1] }}</td>
+      </tr>
+      {% endfor %}
+</table>
+<p>
+{% if result1 != None %}
+<img src="{{result1}}" width="100%">
+{% endif %}
+</p>
+
+<h1>Affiliation assessment</h1>
+<table id = "results">
+    {% for row in bias_input %}
+    <tr>
+      <td>{{ row[0] }}</td><td>{{ row[1] }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<p>
+{% if result2 != None %}
+<img src="{{result2}}" width="100%">
+{% endif %}
+</p>
+
+<h1>Most similar publishers</h1>
+<table id = "results">
+      {% for row in publisher %}
+      <tr>
+        <td>{{ row[0] }}</td><td>{{ row[1] }}</td>
+      </tr>
+      {% endfor %}
+</table>
+
+<table>
+  <td height = "100pt"; width = "300pt"><a href="/text/"><input type="submit" value="Check another article" style="width: 300px; height = 300px"></td>
+  <td height = "100pt"; width = "300pt"><a href="/about/"><input type="submit" name="about_f2v" value="About Fake2vec" style="width: 300px; height = 300px"></td>
+</table>
+
+</body>
+</html>
