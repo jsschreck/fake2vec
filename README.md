@@ -1,34 +1,42 @@
-# DeepSpot 
+# Fake2vec
 
 ![MacDown logo](http://macdown.uranusjr.com/static/images/logo-160.png)
 
-Estimate a news articles accuracy and potential bias.
+Stopping the spread of fake news at the source
 
-Based on available resources from the [Media Bias/Fact Check](http://www.mediabiasfactcheck.com) website. 
+Based on available resources from the [Media Bias/Fact Check](http://www.mediabiasfactcheck.com) website.
 
 
-Options 
+Options
 -----------------------------------------------------------------------------------------------
-Use different pre-trained word embeddings.
-1. word2vec - used to compute the average "word" vector, given a sentence (with simple words removed)
-2. doc2vec -
-3. Glove -
-4. BERT - 
+The main scripts listed below each have options (defaults are set). To see the options type
+```
+python one_of_the_scripts_below.py --help
+```
 
-
-Setup and installation instructions
+Train and deploy fake2vec
 -----------------------------------------------------------------------------------------------
+Scrape the publisher list provided by MSFC:
+```
+python utils/scrape_publisher.py
+```
 
+Prepare the scraped data for training:
+```
+python utils/text_processor.py
+```
 
+Train the doc2vec embedding:
+```
+python utils/train_doc2vec.py
+```
+
+Train the neural classifier model:
+```
+python utils/train_classifier.py
+```
+
+Deploy fake2vec on your local server:
+```cd app; python main.py
+```
 =============================================
-
-Software dependencies
-
-Custom conda build for fake news project:
-
-conda create -n fakenews python=3.6 anaconda
-
-conda install -c conda-forge newspaper3k numpy scipy pandas
-
-conda install -c conda-forge nltk
-
