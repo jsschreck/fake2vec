@@ -73,17 +73,6 @@ def load_data(doc2vec_training_csv = 'data/Doc2vecTrainingData.csv', doc2vec_pre
 				if article_string == "" or article_string == ' ':
 					continue
 
-				'''
-				with open(doc2vec_training_csv, 'a+') as fid:
-					fid.write('"{}",{},{},{},{},{},{}\n'.format(article_string,
-																company,
-																company_token,
-																fact_score,
-																fact_token,
-																bias_score,
-																bias_token))
-				'''
-
 				docs_dict['docu_text'].append(article_string)
 				docs_dict['publisher'].append(company)
 				docs_dict['publisher_token'].append(company_token)
@@ -107,7 +96,7 @@ def load_data(doc2vec_training_csv = 'data/Doc2vecTrainingData.csv', doc2vec_pre
 	# Shuffle the rows
 	df = utils.shuffle(df)
 
-	return df #, company_to_token, token_to_company
+	return df
 
 def top_n_accuracy(preds, truths, n):
 	best_n = np.argsort(preds, axis=1)[:,-n:]
@@ -144,14 +133,14 @@ def LogisticClassifier(model, train, test, label_index=0, infer_steps=None, infe
 									infer_steps = infer_steps,
 									infer_alpha = infer_alpha,
 									min_words = min_words,
-									reinfer_train = False)
+									reinfer_train = True)
 
 	y_test, X_test = get_vectors(model, test,
 									label_index = label_index,
 									infer_steps = infer_steps,
 									infer_alpha = infer_alpha,
 									min_words = min_words,
-									reinfer_train = False)
+									reinfer_train = True)
 
 	predictor = LogisticRegression(solver='lbfgs',
 								   multi_class='multinomial',
@@ -180,17 +169,17 @@ def LogisticClassifier(model, train, test, label_index=0, infer_steps=None, infe
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--nb_epoch', type = int, default = 20,
+	parser.add_argument('--nb_epoch', type = int, default = 30,
 						help = 'Number of epochs to train for, default 1000')
 	parser.add_argument('--docvec_size', type = int, default = 300,
 						help = 'Document vector size, default 300')
 	parser.add_argument('--window', type = int, default = 300,
 						help = 'Doc2vec training window, default 300')
-	parser.add_argument('--min_word_count', type = int, default = 2,
-						help = 'Minimum number of words in document, default 2')
+	parser.add_argument('--min_word_count', type = int, default = 10,
+						help = 'Minimum number of words in document, default 10')
 	parser.add_argument('--cores', type = int, default = multiprocessing.cpu_count(),
-						help = 'Set to 1 to run on GPU, if avilable, else 0 (default)')
-	parser.add_argument('--save_training_loc', type = str, default = 'data',
+						help = 'Default is number of cores available.')
+	parser.add_argument('--save_training_doc2vec', type = str, default = 'data',
 						help = 'Save processed training data to csv')
 	args = parser.parse_args()
 
@@ -198,19 +187,19 @@ if __name__ == '__main__':
 	vec_size		= int(args.docvec_size)
 	window			= int(args.window)
 	min_count  		= int(args.min_word_count)
-	save_dir		= str(args.save_training_loc)
+	save_dir		= str(args.save_training_doc2vec)
 	cores 			= int(args.cores)
 
 	model_details_tag = "VecSize-{}_MinDoc-{}_Window-{}".format(vec_size,min_count,window)
 
-	# Load filepaths
+	# Load file paths
 	doc2vec_training_csv = '{}/Doc2vecTrainingData.csv'.format(save_dir)
 	doc2vec_preprocessed = '{}/Doc2vecTrainingDataProcessed.pkl'.format(save_dir)
 
-	# Save filepaths
-	doc2vec_model_loc = "models/doc2vec-{}.model".format(model_details_tag)
-	classifier_model_loc = "models/logistic_classifier-{}.pkl".format(model_details_tag)
-	classifier_report_csv = "reports/logistic_classifier_report-{}.csv".format(model_details_tag)
+	# Save file paths
+	doc2vec_model_loc = "models/production/doc2vec-{}.model".format(model_details_tag)
+	classifier_model_loc = "models/production/logistic_classifier-{}.pkl".format(model_details_tag)
+	classifier_report_csv = "reports/production/logistic_classifier_report-{}.csv".format(model_details_tag)
 	check_classifier_acc_every = 1
 
 	assert gensim.models.doc2vec.FAST_VERSION > -1, "This will be painfully slow otherwise"
@@ -230,8 +219,9 @@ if __name__ == '__main__':
 	test_tagged  = test.apply(lambda r: TaggedDocument(words=r['docu_text'],
 	    					   tags=[r.publisher, r.fact_score, r.bias_score]),
 	    					   axis=1)
+
 	# Initialize Doc2Vec model
-	alpha = 0.065
+	alpha = 0.025
 	min_alpha = 1e-4
 	alpha_delta = (alpha - min_alpha) / (N_epochs - 1)
 
@@ -240,8 +230,8 @@ if __name__ == '__main__':
 	                alpha = alpha,
 	                min_alpha = min_alpha,
 	                min_count = min_count,
-	                hs = 0,
-	                negative = 5,
+	                hs = 1,
+	                #negative = 5,
 	                sample = 0,
 	                workers = cores,
 	                #dbow_words = 1,
@@ -265,10 +255,7 @@ if __name__ == '__main__':
 		# fix the learning rate, no decay
 		model.min_alpha = model.alpha
 
-		# Save the model
-		print("... saving model weights")
-		model.save(doc2vec_model_loc)
-
+		# Check acc. on LogsiticClassifier
 		if (epoch + 1) % check_classifier_acc_every == 0:
 			print("... evaluating %s" % model)
 
@@ -282,12 +269,13 @@ if __name__ == '__main__':
 			report_train = pd.DataFrame(report_train).transpose()
 			report_train.to_csv(classifier_report_csv)
 
-			with open(classifier_model_loc, "wb") as fid:
+			with open(classifier_model_loc + "_{}".format(epoch), "wb") as fid:
 				pickle.dump(classifier,fid)
 
-		print('... it took {:.2f}s to complete the epoch'.format(time.time()-t0))
+			print("... saving model weights")
+			model.save(doc2vec_model_loc + "_{}".format(epoch))
 
-	sys.exit()
+		print('... it took {:.2f}s to complete the epoch'.format(time.time()-t0))
 
 	'''
 	# Build pyTorch for deep-classifier ...
