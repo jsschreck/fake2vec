@@ -1,14 +1,14 @@
 import numpy as np
-import pickle, sys, os, itertools  
+import pickle, sys, os, itertools
 
 import matplotlib, pylab
-matplotlib.use('TkAgg')
+#matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 
 def PDF_SAVECHOP(f,PNG=False):
-	
+
 	if PNG==False:
 		pylab.savefig(f+'.pdf',
 		        pad_inches=0,transparent=False)
@@ -57,7 +57,7 @@ def plot_history(history, c1 = 'loss', c2 = 'pub_acc'):
 	## As loss always exists
 	epochs = range(1,len(history.history['loss']) + 1)
 	colors = plt.cm.rainbow(np.linspace(0,1,4))
-	
+
 	## Loss plots ##########
 
 	fig = fig_window(0,1,1)
@@ -69,7 +69,7 @@ def plot_history(history, c1 = 'loss', c2 = 'pub_acc'):
 		ax1.semilogy(epochs, history.history[l], color = c)
 	ax1.legend([" ".join(x.split("_")) for x in losses], loc = 'best')
 	ax1.set_title("Training split (70\%)")
-	
+
 	val_losses = ['val_' + x for x in losses]
 	for l,c in zip(val_losses,colors):
 		ax2.semilogy(epochs, history.history[l], color = c)
@@ -94,7 +94,7 @@ def plot_history(history, c1 = 'loss', c2 = 'pub_acc'):
 		ax1.plot(epochs, history.history[l], color = c)
 	ax1.legend([" ".join(x.split("_")) for x in accuracies], loc = 'best')
 	ax1.set_title("Training split (70\%)")
-	
+
 	val_accuracies = ['val_' + x for x in accuracies]
 	for l,c in zip(val_accuracies,colors):
 		ax2.plot(epochs, history.history[l], color = c)
@@ -121,19 +121,19 @@ def plot_confusion_matrix(model, X, y_true, encoders, normalize=False, cmap=plt.
 	Normalization can be applied by setting `normalize=True`.
 	"""
 	# publisher, fact, bias
-	
+
 	output_labels = {0: 'publisher', 1: 'fact', 2: 'bias'}
-	
+
 	class_list = [range(937), [0,2,1], [1,3,4,0,6,5,2]]
 
 	print("Evaluating model on training data ...")
-	y_pred = model.predict(X) 
+	y_pred = model.predict(X)
 	print("... finished")
 
 	for k, (_y_true, _y_pred, classes) in enumerate(zip(y_true, y_pred, class_list)):
-		
+
 		if not k: continue
-		
+
 		labels = classes
 		classes = encoders[k].inverse_transform(classes)
 
@@ -142,7 +142,7 @@ def plot_confusion_matrix(model, X, y_true, encoders, normalize=False, cmap=plt.
 
 		print("Working on class {}".format(output_labels[k]))
 
-		cm = confusion_matrix(_y_true.argmax(axis=1), 
+		cm = confusion_matrix(_y_true.argmax(axis=1),
 								_y_pred.round().argmax(axis=1),
 								labels = labels)
 		print("... finished building confusion matrix for class {}".format(output_labels[k]))
@@ -158,7 +158,7 @@ def plot_confusion_matrix(model, X, y_true, encoders, normalize=False, cmap=plt.
 
 		fmt = '.2f' if normalize else 'd'
 		thresh = cm.max() / 2.
-		
+
 		for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
 			ax.text(j, i, format(cm[i, j], fmt),
 			         horizontalalignment="center",
@@ -172,7 +172,7 @@ def plot_confusion_matrix(model, X, y_true, encoders, normalize=False, cmap=plt.
 			classes = ['HIGH', 'MIXED', 'LOW']
 		if k == 2:
 			classes = ['extreme-left', 'left', 'left-center', 'center', 'right-center', 'right', 'extreme-right']
-		
+
 		ax.set_xticklabels(classes, rotation = 45, ha="right")
 		ax.set_yticklabels(classes)
 
@@ -185,24 +185,29 @@ def plot_confusion_matrix(model, X, y_true, encoders, normalize=False, cmap=plt.
 			_title = 'Validation split (30\%)'
 
 		ax.set_title(_title)
-	
+
 		plt.tight_layout()
 		PDF_SAVECHOP("results/confusion_matrix_{}_{}".format(title, output_labels[k]))
 
 if __name__ == '__main__':
-	
+
+	WEIGHTS_FPATH = "models/classifier/model.h5.pkl"
+
+	with open(WEIGHTS_FPATH, "rb") as fid:
+		classifier = pickle.load(fid)
+
 	with open("data/plot_data.pkl", "rb") as fid:
-		classifier, history, N_classes, X_train, y_input, X_test, y_input_test = pickle.load(fid)
-	
+		history, N_classes, X_train, y_input, X_test, y_input_test = pickle.load(fid)
+
 	with open("data/label_encoders.pkl", "rb") as fid:
 		encoders = pickle.load(fid)
 	#print(history.history.keys())
 
 	plot_history(history, c1 = 'loss', c2 = 'pub_acc')
+
 	'''
-	plot_confusion_matrix(classifier, X_test, y_input_test, encoders, 
-							normalize=True, 
+	plot_confusion_matrix(classifier, X_test, y_input_test, encoders,
+							normalize=True,
 							cmap=plt.cm.Blues,
 							title = 'test')
 	'''
-	

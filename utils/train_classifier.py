@@ -301,9 +301,9 @@ if __name__ == '__main__':
 
     # Breakdown of class accuracies, etc.
     class_report(X_train, y_train, classifier,
-                outfile = "reports/class_report_train")
+                outfile = "results/class_report_train")
     class_report(X_test, y_test, classifier,
-                outfile = "reports/class_report")
+                outfile = "results/class_report")
 
     # Save model weights to h5
     classifier.save_weights(WEIGHTS_FPATH, overwrite = True)

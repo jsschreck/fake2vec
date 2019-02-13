@@ -1,6 +1,6 @@
 #!/bin/bash
 
-mkdir data models reports results
+mkdir data models results
 mkdir models/classifier models/doc2vec
 
 python utils/scrape_publisher.py

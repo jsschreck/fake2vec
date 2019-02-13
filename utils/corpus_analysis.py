@@ -2,7 +2,7 @@ import numpy as np
 import pickle, sys, os, itertools
 
 import matplotlib, pylab
-matplotlib.use('TkAgg')
+#matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 from train_doc2vec import load_data
@@ -93,20 +93,36 @@ def class_imbalance(df,label_index):
 
 if __name__ == '__main__':
 
+	WEIGHTS_FPATH = "models/classifier/model.h5.pkl"
+
+	with open(WEIGHTS_FPATH, "rb") as fid:
+		classifier = pickle.load(fid)
+
 	with open("data/plot_data.pkl", "rb") as fid:
-		classifier, history, N_classes, X_train, y_input, X_test, y_input_test = pickle.load(fid)
+		history, N_classes, X_train, y_input, X_test, y_input_test = pickle.load(fid)
 
 	with open("data/label_encoders.pkl", "rb") as fid:
 		encoders = pickle.load(fid)
 
-	if os.path.isfile("data/doc2vec_train.pkl"):
-		with open("data/doc2vec_train.pkl", "rb") as fid:
-			df = pickle.load(fid)
-	else:
-		doc2vec_train = 'data/doc2vec_train.csv'
-		df, company_to_token, token_to_company = load_data(doc2vec_train = doc2vec_train)
-		with open("data/doc2vec_train.pkl", "wb") as fid:
-			pickle.dump(df,fid)
+	# with open("data/plot_data.pkl", "rb") as fid:
+	# 	classifier, history, N_classes, X_train, y_input, X_test, y_input_test = pickle.load(fid)
+	#
+	# with open("data/label_encoders.pkl", "rb") as fid:
+	# 	encoders = pickle.load(fid)
+
+	# Load data into pandas dataframe
+	doc2vec_training_csv = 'data/Doc2vecTrainingData.csv'
+	doc2vec_preprocessed = 'data/Doc2vecTrainingDataProcessed.pkl'
+	df = load_data(doc2vec_training_csv = doc2vec_training_csv,
+					doc2vec_preprocessed = doc2vec_preprocessed)
+	# if os.path.isfile("data/doc2vec_train.pkl"):
+	# 	with open("data/doc2vec_train.pkl", "rb") as fid:
+	# 		df = pickle.load(fid)
+	# else:
+	# 	doc2vec_train = 'data/doc2vec_train.csv'
+	# 	df, company_to_token, token_to_company = load_data(doc2vec_train = doc2vec_train)
+	# 	with open("data/doc2vec_train.pkl", "wb") as fid:
+	# 		pickle.dump(df,fid)
 	df.rename(columns={'fact_score':'fact', 'bias_score':'bias'}, inplace=True)
 
 	for label_index in [0,1,2]:
