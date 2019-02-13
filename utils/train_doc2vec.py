@@ -199,7 +199,7 @@ if __name__ == '__main__':
 	# Save file paths
 	doc2vec_model_loc = "models/production/doc2vec-{}.model".format(model_details_tag)
 	classifier_model_loc = "models/production/logistic_classifier-{}.pkl".format(model_details_tag)
-	classifier_report_csv = "reports/production/logistic_classifier_report-{}.csv".format(model_details_tag)
+	classifier_report_csv = "results/production/logistic_classifier_report-{}.csv".format(model_details_tag)
 	check_classifier_acc_every = 1
 
 	assert gensim.models.doc2vec.FAST_VERSION > -1, "This will be painfully slow otherwise"

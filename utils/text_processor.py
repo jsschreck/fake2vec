@@ -227,7 +227,8 @@ class Website:
 		if not self.total_content:
 			print("Have not yet loaded / cleaned articles ... doing this now")
 			self.load_newspaper(save_location = filtered_filesaveloc)
-		yield from self.total_content.items()
+			for _item in self.total_content.items():
+				yield _item
 
 	def save(self, data, save_location = ''):
 		with open(save_location, "wb") as fid:
