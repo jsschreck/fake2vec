@@ -1,5 +1,5 @@
 import numpy as np
-import pickle, sys, os, itertools  
+import pickle, sys, os, itertools
 
 import matplotlib, pylab
 matplotlib.use('TkAgg')
@@ -14,7 +14,7 @@ from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 
 def PDF_SAVECHOP(f,PNG=False):
-	
+
 	if PNG==False:
 		pylab.savefig(f+'.pdf',
 		        pad_inches=0,transparent=False)
@@ -59,18 +59,18 @@ def class_imbalance(df,label_index):
 
 	le = LabelEncoder()
 	df[label] = le.fit_transform(df[label])
-	
-	if label_index == 0: 
-		ax = sns.countplot(data=df, 
-					   x=label, 
+
+	if label_index == 0:
+		ax = sns.countplot(data=df,
+					   x=label,
 					   order = df[label].value_counts().index,
 					   log=True)
 	else:
-		ax = sns.countplot(data=df, 
-						   x=label, 
+		ax = sns.countplot(data=df,
+						   x=label,
 						   order = df[label].value_counts().index)
 	ax.set_title("Articles per " + label + " class")
-	
+
 	if label_index == 0:
 		ticks = range(0, max(df[label]))
 		xticks = []
@@ -92,13 +92,13 @@ def class_imbalance(df,label_index):
 	#plt.show()
 
 if __name__ == '__main__':
-	
+
 	with open("data/plot_data.pkl", "rb") as fid:
 		classifier, history, N_classes, X_train, y_input, X_test, y_input_test = pickle.load(fid)
-	
+
 	with open("data/label_encoders.pkl", "rb") as fid:
 		encoders = pickle.load(fid)
-	
+
 	if os.path.isfile("data/doc2vec_train.pkl"):
 		with open("data/doc2vec_train.pkl", "rb") as fid:
 			df = pickle.load(fid)
@@ -111,5 +111,3 @@ if __name__ == '__main__':
 
 	for label_index in [0,1,2]:
 		class_imbalance(df,label_index)
-	
-	

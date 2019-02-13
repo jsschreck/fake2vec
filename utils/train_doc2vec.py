@@ -1,5 +1,5 @@
 from sklearn.model_selection import train_test_split
-from deepspot.utils.text_processor import WordsContainer
+from fake2vec.utils.text_processor import WordsContainer
 
 import pandas as pd, numpy as np, pickle
 import sys, re, os, multiprocessing, random, time, argparse

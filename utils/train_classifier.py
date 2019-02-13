@@ -1,6 +1,6 @@
 from sklearn.model_selection import train_test_split
-from deepspot.utils.text_processor import WordsContainer
-from deepspot.utils.train_doc2vec import load_data
+from fake2vec.utils.text_processor import WordsContainer
+from fake2vec.utils.train_doc2vec import load_data
 
 import numpy as np
 import pandas as pd
