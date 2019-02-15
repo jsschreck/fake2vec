@@ -1,7 +1,7 @@
 from flask import Flask, Response, render_template, request, redirect, url_for
 
 from fake2vec.utils.text_processor import normalize
-from fake2vec.utils.scraper import load_url
+from fake2vec.utils.scrape_publishers import load_url
 from fake2vec.utils.model import main
 
 import io, random, base64, urllib, sys, re

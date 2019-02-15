@@ -1,6 +1,6 @@
 # Fake2vec
 
-<!-- ![MacDown logo](http://macdown.uranusjr.com/static/images/logo-160.png) -->
+<img src="app/logo.png" alt="drawing" width="200"/>
 
 Stopping the spread of fake news at the source
 

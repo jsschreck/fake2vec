@@ -8,16 +8,14 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 
 def PDF_SAVECHOP(f,PNG=False):
-
 	if PNG==False:
-		pylab.savefig(f+'.pdf',
-		        pad_inches=0,transparent=False)
+		pylab.savefig(f+'.pdf', pad_inches=0, transparent=False)
 		os.system('pdfcrop %s.pdf' % f)
 		os.system('mv %s-crop.pdf %s.pdf' % (f,f))
 	if PNG:
-		pylab.savefig(f+'.jpg',
-		        pad_inches=0)
-		os.system('convert -trim %s.jpg %s.jpg' % (f,f))
+		pylab.savefig(f+'.png', pad_inches=0)
+		os.system('convert -trim %s.png %s.png' % (f,f))
+	os.system('convert -verbose -density 600 {}.pdf {}.png'.format(f,f))
 
 def fig_window(_id = 0, scale_x = 1, scale_y = 1):
 	plt.rc('font', **{'family':'serif', 'serif':['Computer Modern Roman'],
@@ -29,6 +27,7 @@ def fig_window(_id = 0, scale_x = 1, scale_y = 1):
 	fig_height = fig_width*golden_mean      # height in inches
 	fig_size =  [fig_width,fig_height]
 	params = {'backend': 'ps',
+			  'figure.dpi': 300,
 	          'axes.labelsize': 12,
 	          'font.size': 12,
 	          'legend.fontsize': 10,
@@ -67,22 +66,22 @@ def plot_history(history, c1 = 'loss', c2 = 'pub_acc'):
 	losses = ['loss', 'pub_loss', 'fact_loss', 'bias_loss']
 	for l,c in zip(losses,colors):
 		ax1.semilogy(epochs, history.history[l], color = c)
-	ax1.legend([" ".join(x.split("_")) for x in losses], loc = 'best')
-	ax1.set_title("Training split (70\%)")
+	ax1.legend(['Combined', 'Publisher', "Fact", "Lean"], loc = 'best')
+	ax1.set_title("Training (70\%)")
 
 	val_losses = ['val_' + x for x in losses]
 	for l,c in zip(val_losses,colors):
 		ax2.semilogy(epochs, history.history[l], color = c)
-	ax2.legend([" ".join(x.split("_")) for x in val_losses], loc = 'best')
-	ax2.set_title("Validation split (30\%)")
+	#ax2.legend([" ".join(x.split("_")) for x in val_losses], loc = 'best')
+	ax2.set_title("Validation (30\%)")
 
 	for ax in [ax1,ax2]:
-		ax.set_xlabel(r"Epochs")
+		ax.set_xlabel(r"Epoch")
 		ax.set_ylabel(r"Loss")
 
 	plt.tight_layout()
 	PDF_SAVECHOP("results/training_loss")
-	fig.clear()
+	fig.clf()
 
 	## Accuracy plots ##########
 	fig = fig_window(1,1,1)
@@ -92,22 +91,23 @@ def plot_history(history, c1 = 'loss', c2 = 'pub_acc'):
 	accuracies = ['pub_acc', 'fact_acc', 'bias_acc']
 	for l,c in zip(accuracies,colors):
 		ax1.plot(epochs, history.history[l], color = c)
-	ax1.legend([" ".join(x.split("_")) for x in accuracies], loc = 'best')
-	ax1.set_title("Training split (70\%)")
+	ax1.legend(['Publisher', "Fact", "Lean"], loc = 'lower right')
+	ax1.set_title("Training (70\%)")
 
 	val_accuracies = ['val_' + x for x in accuracies]
 	for l,c in zip(val_accuracies,colors):
 		ax2.plot(epochs, history.history[l], color = c)
-	ax2.legend([" ".join(x.split("_")) for x in val_accuracies], loc = 'best')
-	ax2.set_title("Validation split (30\%)")
+	#ax2.legend([" ".join(x.split("_")) for x in val_accuracies], loc = 'best')
+	ax2.set_title("Validation (30\%)")
 
+	ax1.set_ylabel(r"Top-1 Accuracy")
 	for ax in [ax1,ax2]:
-		ax.set_xlabel(r"Epochs")
-		ax.set_ylabel(r"Accuracy")
+		ax.set_xlabel(r"Epoch")
 		ax.set_ylim([0.4, 1.0])
 
 	plt.tight_layout()
 	PDF_SAVECHOP("results/training_accuracy")
+	fig.clf()
 
 def swap_cols(arr, frm, to):
 	arr[:,[frm, to]] = arr[:,[to, frm]]
@@ -180,9 +180,9 @@ def plot_confusion_matrix(model, X, y_true, encoders, normalize=False, cmap=plt.
 		ax.set_xlabel('Predicted label')
 
 		if title == 'train':
-			_title = 'Training split (70\%)'
+			_title = 'Training (70\%)'
 		else:
-			_title = 'Validation split (30\%)'
+			_title = 'Validation (30\%)'
 
 		ax.set_title(_title)
 
@@ -201,13 +201,9 @@ if __name__ == '__main__':
 
 	with open("data/label_encoders.pkl", "rb") as fid:
 		encoders = pickle.load(fid)
-	#print(history.history.keys())
 
 	plot_history(history, c1 = 'loss', c2 = 'pub_acc')
-
-	'''
 	plot_confusion_matrix(classifier, X_test, y_input_test, encoders,
 							normalize=True,
 							cmap=plt.cm.Blues,
 							title = 'test')
-	'''
