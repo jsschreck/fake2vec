@@ -1,6 +1,6 @@
 # Fake2vec
 
-<img src="app/logo.png" alt="drawing" width="200"/>
+<img src="app/static/logo_transparent.png" alt="drawing" width="200"/>
 
 Stopping the spread of fake news at the source
 
