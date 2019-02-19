@@ -1,16 +1,18 @@
 from sklearn.model_selection import train_test_split
 from fake2vec.utils.text_processor import WordsContainer
 from fake2vec.utils.train_doc2vec import load_data
+from fake2vec.utils.model import doc2vec, KerasClassifier
 
 import numpy as np
 import pandas as pd
 import sys, re, os, argparse, pickle, functools, collections, warnings
 
-from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
 
+import keras
 from keras.utils import np_utils
 from keras.regularizers import l1, l2
+from keras.optimizers import SGD, Adam
 from keras.callbacks import Callback, ModelCheckpoint, CSVLogger, EarlyStopping
 from keras.callbacks import ReduceLROnPlateau, LearningRateScheduler
 
@@ -19,18 +21,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, accuracy_score
 from sklearn import utils
-#, get_vectors
-
-import torch
-import torch.nn as nn
-import torch.optim
-from torch.autograd import Variable
-from torch.utils.data import Dataset, DataLoader
-
-import keras
-from keras.models import Sequential, Model
-from keras.layers import Dense, Dropout, LSTM, Input, Activation, BatchNormalization, MaxPooling1D
-from keras.optimizers import SGD, Adam
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -46,9 +36,11 @@ def CountFrequency(arr):
 
 def get_callbacks(WEIGHTS_FPATH, LOG_FPATH, monitor):
 	callbacks = [
-		ModelCheckpoint(WEIGHTS_FPATH, monitor = monitor, save_best_only = True, mode = 'auto'),
+		ModelCheckpoint(WEIGHTS_FPATH, monitor = monitor,
+                        save_best_only = True, mode = 'auto'),
 		EarlyStopping(monitor=monitor, patience = 5),
-		ReduceLROnPlateau(monitor=monitor, factor=0.2, patience = 2, min_lr=1e-8, mode='auto'),
+		ReduceLROnPlateau(monitor=monitor, factor=0.2, patience = 2,
+                            min_lr=1e-8, mode='auto'),
 		CSVLogger(LOG_FPATH, separator= ' ', append = True),
 		]
 	return callbacks
@@ -72,21 +64,11 @@ def class_report(X, y, model, outfile = "class_report"):
 		report = pd.DataFrame(report).transpose()
 		report.to_csv(outfile + ".{}.csv".format(output_labels[k]))
 
-def doc_vectors(model, tagged_docs, label_index=0, reinfer_train=False, infer_steps=5, infer_alpha=None, min_words = 1):
-	docvals = tagged_docs.values
-	docvals = [doc for doc in docvals if len(doc.words) >= min_words]
-	print("Total documents with length >= {}: {}".format(min_words,len(docvals)))
+def load_cached_vectors(df, model, label_index, encoders, min_words = 10,
+                        num_classes = 938, cache_loc = None,
+                        fit_encoder = False, infer_steps = None,
+                        infer_alpha = None, reinfer_train = True):
 
-	def _get(doc):
-		if label_index in doc.tags:
-			return (doc.tags[0], doc.tags[1], doc.tags[2], model.docvecs[doc.tags[label_index]])
-		else:
-			return (doc.tags[0], doc.tags[1], doc.tags[2], model.infer_vector(doc.words, steps=infer_steps))
-
-	y1, y2, y3, x = zip(*[_get(doc) for doc in docvals])
-	return np.array(x), y1, y2, y3
-
-def load_cached_vectors(df, model, label_index, min_words = 10, num_classes = 938, cache_loc = None, fit_encoder = False, infer_steps = None, infer_alpha = None, reinfer_train = True):
     # If vectors already saved, load them --> infer step is slow.
     if os.path.isfile(cache_loc):
         with open(cache_loc, "rb") as fid:
@@ -98,74 +80,26 @@ def load_cached_vectors(df, model, label_index, min_words = 10, num_classes = 93
         					   axis=1)
 
         # Load the document vectors (using publisher label)
-        X, y1, y2, y3 = doc_vectors(model, tagged,
-        							min_words = min_words,
-        							label_index = label_index,
-        							infer_steps = infer_steps,
-        							infer_alpha = infer_alpha,
-        							reinfer_train = reinfer_train)
+        X, y1, y2, y3 = model.doc_vectors(tagged,
+            							min_words = min_words,
+            							label_index = label_index,
+            							infer_steps = infer_steps,
+            							infer_alpha = infer_alpha,
+            							reinfer_train = reinfer_train
+                                        )
 
-        label_encoder1 = LabelEncoder()
-        label_encoder1.fit(y1)
-        label_encoder2 = LabelEncoder()
-        label_encoder2.fit(y2)
-        label_encoder3 = LabelEncoder()
-        label_encoder3.fit(y3)
+        y1 = encoders[0].transform(y1)
+        y2 = encoders[1].transform(y2)
+        y3 = encoders[2].transform(y3)
 
-        y1 = np_utils.to_categorical((label_encoder1.transform(list(y1))),
-        								   num_classes = num_classes)
-        y2 = np_utils.to_categorical((label_encoder2.transform(list(y2))),
-        								   num_classes = 3)
-        y3 = np_utils.to_categorical((label_encoder3.transform(list(y3))),
-        								   num_classes = 7)
+        y1 = np_utils.to_categorical(y1, num_classes = num_classes)
+        y2 = np_utils.to_categorical(y2, num_classes = 3)
+        y3 = np_utils.to_categorical(y3, num_classes = 7)
 
         with open(cache_loc, "wb") as fid:
         	pickle.dump([X, y1, y2, y3],fid)
 
     return X, y1, y2, y3
-
-class FakeNewsModel:
-
-    def __init__(self, word_vector_dim, N_classes, N_fact = 3, N_bias = 7):
-        self.word_vector_dim = word_vector_dim
-        self.N_classes = N_classes
-        self.N_fact = N_fact
-        self.N_bias = N_bias
-
-    def shared_block(self, inputs):
-        x = Dense(1000, input_dim = self.word_vector_dim, kernel_initializer="normal", kernel_regularizer=l2(0.0))(inputs)
-        x = BatchNormalization()(x)
-        x = Activation("relu")(x)
-        x = Dropout(0.5)(x)
-        return x
-
-    def publisher(self, inputs):
-    	x = Dense(self.N_classes, kernel_initializer="normal", activation="softmax", name="pub")(inputs)
-    	return x
-
-    def fact(self, inputs):
-    	x = Dense(self.N_fact, kernel_initializer="normal", activation="softmax", name = "fact")(inputs)
-    	return x
-
-    def bias(self, inputs):
-    	x = Dense(self.N_bias, kernel_initializer="normal", activation="softmax", name = "bias")(inputs)
-    	return x
-
-    def score(self, inputs):
-    	x = Dense(1, kernel_initializer="normal", activation="linear", name = "score")(inputs)
-    	return x
-
-    def model(self):
-    	_input = Input(shape=(self.word_vector_dim,))
-    	x = self.shared_block(_input)
-    	pub_out = self.publisher(x)
-    	fact_out = self.fact(x)
-    	bias_out = self.bias(x)
-    	model = Model(inputs = _input, outputs = [pub_out, fact_out, bias_out])
-
-    	score_out = self.score(x)
-    	score_model = Model(inputs = _input, outputs = score_out)
-    	return model, score_model
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -191,8 +125,8 @@ if __name__ == '__main__':
     					help = 'Document vector size, default 1000')
     parser.add_argument('--infer_steps', type = int, default = 20,
     					help = 'Infer steps for document vectors, default 20')
-    parser.add_argument('--save_doc2vec_loc', type = str, default = 'data', help = 'Save processed training data to csv')
-    parser.add_argument('--save_classifier_loc', type = str, default = 'models', help = 'Save processed training data to csv')
+    parser.add_argument('--save_loc', type = str, default = './',
+                        help = 'Save output to dir')
     args = parser.parse_args()
 
     N_epochs		= int(args.nb_epoch)
@@ -202,40 +136,55 @@ if __name__ == '__main__':
     infer_steps     = int(args.infer_steps)
     label_index     = int(args.label_index)
     min_doc_size 	= int(args.min_doc_size)
-    data_save_dir	= str(args.save_doc2vec_loc)
-    model_save_dir	= str(args.save_classifier_loc)
+    data_save_dir	= str(args.save_loc)
     lr 				= float(args.lr)
 
     # Load doc2vec csv / pkl preprocessed data, used to get vectors
-    doc2vec_training_csv = '{}/Doc2vecTrainingData.csv'.format(data_save_dir)
-    doc2vec_preprocessed = '{}/Doc2vecTrainingDataProcessed.pkl'.format(data_save_dir)
+    joined_dir = os.path.join(data_save_dir,'data')
+    if not os.path.isdir(joined_dir):
+        os.makedirs(joined_dir)
+    doc2vec_training_csv = '{}/Doc2vecTrainingData.csv'.format(joined_dir)
+    doc2vec_preprocessed = '{}/Doc2vecTrainingDataProcessed.pkl'.format(joined_dir)
+    label_encoders = "{}/label_encoders.pkl".format(joined_dir)
+    PLOT_DATA_LOC = "{}/plot_data.pkl".format(joined_dir)
     df = load_data(doc2vec_training_csv = doc2vec_training_csv,
     				doc2vec_preprocessed = doc2vec_preprocessed)
 
     # Misc. filepaths for training and results data
-    LOG_FPATH = '{}/classifier_training.txt'.format(model_save_dir)
-    DOC2VEC_MODEL = "{}/doc2vec/doc2vec-VecSize-{}_MinDoc-{}_Window-300.model".format(model_save_dir,vec_size,min_doc_size)
-    WEIGHTS_FPATH = "{}/classifier/model.h5".format(model_save_dir)
-    CACHE_VECTOR_LOC = "{}/doc2vec/cached_vectors_bulk.pkl".format(model_save_dir)
-    PLOT_DATA_LOC = "{}/plot_data.pkl".format(data_save_dir)
+    joined_dir = os.path.join(data_save_dir,'models')
+    if not os.path.isdir(joined_dir):
+        os.makedirs(data_dir)
+        os.makedirs(data_dir + '/doc2vec')
+        os.makedirs(data_dir + '/classifier')
+
+    DOC2VEC_MODEL = "{}/doc2vec/doc2vec-VecSize-{}_MinDoc-{}_Window-300.model".format(joined_dir,vec_size,min_doc_size)
+    CACHE_VECTOR_LOC = "{}/doc2vec/cached_vectors_bulk.pkl".format(joined_dir)
+    LOG_FPATH = '{}/classifier/classifier_training.txt'.format(joined_dir)
+    WEIGHTS_FPATH = "{}/classifier/model.h5".format(joined_dir)
+
+    # Load label encoders
+    with open(label_encoders,"rb") as fid:
+        encoders, classes_counter = pickle.load(fid)
+        N_pubs, N_fact, N_bias = classes_counter
 
     # Load trained doc2vec model
-    model = Doc2Vec.load(DOC2VEC_MODEL)
+    model = doc2vec(DOC2VEC_MODEL)
 
     # Number of unique labels
-    N_vocab = len(model.wv.vocab)
-    N_classes = len(model.docvecs)
+    N_vocab = len(model.model.wv.vocab)
 
     print("Training classifier to predict publishers given words")
     print("... loading doc2vec model")
     print("... length of vocabulary:", N_vocab)
-    print("... number of doc-labels:", N_classes)
+    print("... number of pub labels:", N_pubs)
+    print("... number of fact labels:", N_fact)
+    print("... number of bias labels:", N_bias)
 
     # Get mapping from publisher to id
-    print("... loading label encoder for the full data-set")
-    X, y1, y2, y3 = load_cached_vectors(df, model, label_index,
+    X, y1, y2, y3 = load_cached_vectors(df, model, label_index, encoders,
 									   min_words = min_doc_size,
-									   num_classes = N_classes,
+									   num_classes = N_pubs,
+                                       infer_steps = infer_steps,
 									   cache_loc = CACHE_VECTOR_LOC)
 
     # Set up class-imbalance weights using scheme
@@ -262,7 +211,7 @@ if __name__ == '__main__':
     print("... fitting the classifier model")
 
     # Load neural classifier model
-    classifier, score_model = FakeNewsModel(vec_size, N_classes).model()
+    classifier = KerasClassifier(vec_size, N_pubs).model()
     classifier.summary()
 
     # Load callbacks, optimizer, loss details
@@ -277,8 +226,8 @@ if __name__ == '__main__':
     		  "bias": 'categorical_crossentropy'}
 
     lossWeights = {"pub": 1.0,
-                   "fact": np.log(N_classes/3),
-                   "bias": np.log(N_classes/7)}
+                   "fact": np.log(N_pubs/3),
+                   "bias": np.log(N_pubs/7)}
 
     metrics = ['accuracy']#, top3_acc, top5_acc, top10_acc]
     classifier.compile(loss=losses, loss_weights=lossWeights,
@@ -300,10 +249,19 @@ if __name__ == '__main__':
     print("... bias: train accuracy: %.2f%% / val accuracy: %.2f%%" % (100*estimator.history['bias_acc'][-1], 100*estimator.history['val_bias_acc'][-1]))
 
     # Breakdown of class accuracies, etc.
+    #joined_dir = os.path.join(data_save_dir,'results')
+    #if not os.path.isdir(joined_dir):
+    #    os.makedirs(joined_dir)
     class_report(X_train, y_train, classifier,
-                outfile = "results/class_report_train")
+                outfile = os.path.join(
+                            joined_dir, "classifier/class_report_train"
+                            )
+                )
     class_report(X_test, y_test, classifier,
-                outfile = "results/class_report")
+                outfile = os.path.join(
+                    joined_dir, "classifier/class_report"
+                    )
+                )
 
     # Save model weights to h5
     classifier.save_weights(WEIGHTS_FPATH, overwrite = True)

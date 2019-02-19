@@ -1,11 +1,12 @@
 from sklearn.model_selection import train_test_split
 from fake2vec.utils.text_processor import WordsContainer
+from fake2vec.utils.model import doc2vec
 
 import pandas as pd, numpy as np, pickle
 import sys, re, os, multiprocessing, random, time, argparse
 
 import gensim
-from gensim.models import Doc2Vec
+#from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
 
 from sklearn.linear_model import LogisticRegression
@@ -14,6 +15,8 @@ from sklearn.metrics import classification_report
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
 from sklearn import utils
+
+from keras.utils import np_utils
 
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -94,8 +97,7 @@ def load_data(doc2vec_training_csv = 'data/Doc2vecTrainingData.csv', doc2vec_pre
 	print("Total word count:", total_words)
 
 	# Shuffle the rows
-	df = utils.shuffle(df)
-
+	df = utils.shuffle(df, random_state = 123)
 	return df
 
 def top_n_accuracy(preds, truths, n):
@@ -107,40 +109,27 @@ def top_n_accuracy(preds, truths, n):
 			successes += 1
 	return float(successes)/ts.shape[0]
 
-def get_vectors(model, tagged_docs, label_index=1, reinfer_train=False, infer_steps=5, infer_alpha=None, min_words = 1):
+def LogisticClassifier(Model, train, test, le, label_index = 0,
+						infer_steps = 0, infer_alpha = False,
+						min_count = 10, num_classes = 938, cores = 1):
 
-	docvals = tagged_docs.values
-	docvals = [doc for doc in docvals if len(doc.words) >= min_words]
-	print("... total documents with length >= {}: {}".format(min_words,len(docvals)))
+	X_train, y_train, _, _ = Model.doc_vectors(train,
+										label_index = label_index,
+										infer_steps = infer_steps,
+										infer_alpha = infer_alpha,
+										min_words = min_count,
+										reinfer_train = False
+										)
+	X_test, y_test, _, _ = Model.doc_vectors(test,
+										label_index = label_index,
+										infer_steps = infer_steps,
+										infer_alpha = infer_alpha,
+										min_words = min_count,
+										reinfer_train = False
+										)
 
-	if reinfer_train:
-		targets, regressors = zip(*[(doc.tags[label_index], model.infer_vector(doc.words, steps=infer_steps)) for doc in docvals])
-
-	else:
-		def _get(doc):
-			if label_index in doc.tags:
-				return (doc.tags[label_index], model.docvecs[doc.tags[label_index]])
-			else:
-				return (doc.tags[label_index], model.infer_vector(doc.words, steps=infer_steps))
-
-		targets, regressors = zip(*[_get(doc) for doc in docvals])
-
-	return targets, regressors
-
-def LogisticClassifier(model, train, test, label_index=0, infer_steps=None, infer_alpha=None, cores = 1, min_words = 1):
-	y_train, X_train = get_vectors(model, train,
-									label_index = label_index,
-									infer_steps = infer_steps,
-									infer_alpha = infer_alpha,
-									min_words = min_words,
-									reinfer_train = True)
-
-	y_test, X_test = get_vectors(model, test,
-									label_index = label_index,
-									infer_steps = infer_steps,
-									infer_alpha = infer_alpha,
-									min_words = min_words,
-									reinfer_train = True)
+	y_train = le.transform(y_train)
+	y_test = le.transform(y_test)
 
 	predictor = LogisticRegression(solver='lbfgs',
 								   multi_class='multinomial',
@@ -161,25 +150,27 @@ def LogisticClassifier(model, train, test, label_index=0, infer_steps=None, infe
 	print('... Train: accuracy {}'.format(train_acc))
 	print('... Test: accuracy {}'.format(test_acc))
 
-	report_train = classification_report(y_train, y_pred_train, output_dict=True)
-	report_test = classification_report(y_test, y_pred_test, output_dict=True)
+	report_train = classification_report(y_train, y_pred_train,
+					output_dict=True)
+	report_test = classification_report(y_test, y_pred_test,
+					output_dict=True)
 
 	return report_train, report_test, predictor
 
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--nb_epoch', type = int, default = 30,
-						help = 'Number of epochs to train for, default 1000')
-	parser.add_argument('--docvec_size', type = int, default = 300,
-						help = 'Document vector size, default 300')
+	parser.add_argument('--nb_epoch', type = int, default = 20,
+						help = 'Number of epochs to train for, default 30')
+	parser.add_argument('--docvec_size', type = int, default = 1000,
+						help = 'Document vector size, default 1000')
 	parser.add_argument('--window', type = int, default = 300,
 						help = 'Doc2vec training window, default 300')
 	parser.add_argument('--min_word_count', type = int, default = 10,
 						help = 'Minimum number of words in document, default 10')
 	parser.add_argument('--cores', type = int, default = multiprocessing.cpu_count(),
 						help = 'Default is number of cores available.')
-	parser.add_argument('--save_training_doc2vec', type = str, default = 'data',
+	parser.add_argument('--save_dir', type = str, default = './',
 						help = 'Save processed training data to csv')
 	args = parser.parse_args()
 
@@ -187,29 +178,71 @@ if __name__ == '__main__':
 	vec_size		= int(args.docvec_size)
 	window			= int(args.window)
 	min_count  		= int(args.min_word_count)
-	save_dir		= str(args.save_training_doc2vec)
+	save_dir		= str(args.save_dir)
 	cores 			= int(args.cores)
 
-	model_details_tag = "VecSize-{}_MinDoc-{}_Window-{}".format(vec_size,min_count,window)
+	model_details_tag = "VecSize-{}_MinDoc-{}_Window-{}".format(
+													vec_size,min_count,window
+													)
+	# Need to check if directories exist.
+	data_path = os.path.join(save_dir, 'data')
+	model_path = os.path.join(save_dir, 'models/doc2vec')
+	#results_path = os.path.join(save_dir, 'results')
+	for data_dir in [save_dir, model_path]:
+		if not os.path.isdir(data_dir):
+			os.makedirs(data_dir)
 
 	# Load file paths
-	doc2vec_training_csv = '{}/Doc2vecTrainingData.csv'.format(save_dir)
-	doc2vec_preprocessed = '{}/Doc2vecTrainingDataProcessed.pkl'.format(save_dir)
+	doc2vec_training_csv = '{}/Doc2vecTrainingData.csv'.format(data_path)
+	doc2vec_preprocessed = '{}/Doc2vecTrainingDataProcessed.pkl'.format(data_path)
 
 	# Save file paths
-	doc2vec_model_loc = "models/production/doc2vec-{}.model".format(model_details_tag)
-	classifier_model_loc = "models/production/logistic_classifier-{}.pkl".format(model_details_tag)
-	classifier_report_csv = "results/production/logistic_classifier_report-{}.csv".format(model_details_tag)
+	label_encoders = "{}/label_encoders.pkl".format(data_path)
+	doc2vec_model_loc = "{}/doc2vec-{}.model".format(
+							model_path, model_details_tag
+							)
+	classifier_model_loc = "{}/logistic_classifier-{}.pkl".format(
+							model_path, model_details_tag
+							)
+	classifier_report_csv = "{}/logistic_classifier_report-{}.csv".format(
+							model_path, model_details_tag
+							)
 	check_classifier_acc_every = 1
 
-	assert gensim.models.doc2vec.FAST_VERSION > -1, "This will be painfully slow otherwise"
-	assert os.path.isfile(doc2vec_preprocessed), "Load preprocessed file. Otherwise, python utils/text_processor.py"
+	assert gensim.models.doc2vec.FAST_VERSION > -1, "This will be painfully \
+													 slow otherwise"
+	assert os.path.isfile(doc2vec_preprocessed), "Load preprocessed file. \
+									Otherwise, python utils/text_processor.py"
 
 	# Load data into pandas dataframe
 	df = load_data(doc2vec_training_csv = doc2vec_training_csv,
 					doc2vec_preprocessed = doc2vec_preprocessed)
 
+	# Create the label encoders and save. These are used later to evaluate model
+	le1 = LabelEncoder()
+	le1.fit(df['publisher'])
+	le2 = LabelEncoder()
+	le2.fit(df['fact_score'])
+	le3 = LabelEncoder()
+	le3.fit(df['bias_score'])
+
+	encoders = [le1,le2,le3]
+	label_types = ['publisher', 'fact', 'bias']
+
+	# Count the max number of labels per label-type
+	N_pub_labels = max(le1.transform(df['publisher'])) + 1
+	N_fact_labels = max(le2.transform(df['fact_score'])) + 1
+	N_bias_labels = max(le3.transform(df['bias_score'])) + 1
+	classes_counter = [N_pub_labels, N_fact_labels, N_bias_labels]
+
+	# Save the label encoders.
+	# Used to train classifier and in deployed model
+	with open(label_encoders, "wb") as fid:
+		pickle.dump([encoders, classes_counter], fid)
+
 	# Split into train/test for training doc2vec model.
+	label_index = 0
+
 	train, test = train_test_split(df, test_size=0.3, random_state=42)
 
 	# tags - [publisher, fact, bias]
@@ -220,26 +253,25 @@ if __name__ == '__main__':
 	    					   tags=[r.publisher, r.fact_score, r.bias_score]),
 	    					   axis=1)
 
-	# Initialize Doc2Vec model
+	# Load custom doc2vec model class with some default values
 	alpha = 0.025
 	min_alpha = 1e-4
 	alpha_delta = (alpha - min_alpha) / (N_epochs - 1)
 
-	model = Doc2Vec(vector_size = vec_size,
+	Model = doc2vec(vec_size = vec_size,
 					window = window,
 	                alpha = alpha,
 	                min_alpha = min_alpha,
 	                min_count = min_count,
-	                hs = 1,
-	                #negative = 5,
-	                sample = 0,
-	                workers = cores,
-	                #dbow_words = 1,
-	                dm = 0)
+	                cores = cores
+					)
+	model = Model.model
 	model.build_vocab(train_tagged.values)
 
-	# Train
+	# Train the model
 	print("Training for a maximum of {} epochs".format(N_epochs))
+	print("Using classifier label: {}".format(label_types[label_index]))
+
 	for epoch in range(N_epochs):
 		print('Epoch {} -'.format(epoch))
 
@@ -259,13 +291,17 @@ if __name__ == '__main__':
 		if (epoch + 1) % check_classifier_acc_every == 0:
 			print("... evaluating %s" % model)
 
-			label = 0  # publishers
-			report_train, report_test, classifier = LogisticClassifier(model,
-																train_tagged,
-																test_tagged,
-																cores = cores,
-																min_words = min_count,
-																label_index = label)
+			report_train, report_test, classifier = LogisticClassifier(
+									Model,
+									train_tagged,
+									test_tagged,
+									encoders[label_index],
+									label_index = label_index,
+									infer_steps = 0,
+									num_classes = N_pub_labels,
+									min_count = min_count,
+									cores = cores
+									)
 			report_train = pd.DataFrame(report_train).transpose()
 			report_train.to_csv(classifier_report_csv)
 
@@ -273,7 +309,11 @@ if __name__ == '__main__':
 				pickle.dump(classifier,fid)
 
 			print("... saving model weights")
+			# Save using doc2vec save method
 			model.save(doc2vec_model_loc + "_{}".format(epoch))
+			# Dump loaded file to pkl
+			with open(doc2vec_model_loc + "_{}.pkl".format(epoch), "wb") as fid:
+				pickle.dump(model,fid)
 
 		print('... it took {:.2f}s to complete the epoch'.format(time.time()-t0))
 
