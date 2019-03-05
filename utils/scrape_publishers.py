@@ -11,7 +11,8 @@ from newspaper import Article, fulltext
 # Set the limit for total number of articles to download
 LIMIT = 1e10
 
-def load_url(url, article = {}):
+
+def load_url(url, article={}):
     content = Article(url)
     content.download()
     content.parse()
@@ -19,7 +20,7 @@ def load_url(url, article = {}):
     article['title'] = content.title
     article['authors'] = content.authors
     article['text'] = content.text
-    article['top_image'] =  content.top_image
+    article['top_image'] = content.top_image
     article['movies'] = content.movies
     article['link'] = content.url
     article['published'] = content.publish_date
@@ -38,24 +39,25 @@ def load_url(url, article = {}):
     text += " ".join(article['text'].split("\n"))
     return text
 
-def load_labeled_data(fileName = 'data/corpus.csv'):
+
+def load_labeled_data(fileName='data/corpus.csv'):
     '''
         Load the CSV file with news sites into a dictionary
     '''
     newsPapers = {}
     with open(fileName) as fid:
-        for line in fid.readlines()[1:]: #Skip the top line --> dict keys.
-            url, url_short, media_bias_url, fact, bias = line.strip("\n").split(",")
-            newsPapers[url_short] = {
-                                    "link": url,
-                                    "media-bias": media_bias_url,
-                                    "fact": fact,
-                                    "bias": bias,
-                                    "N_articles": None,
-                                    "articles": []}
+        for line in fid.readlines()[1:]:  # Skip the top line --> dict keys.
+            url, url_short, media_bias_url, fact, bias = line.strip(
+                "\n").split(",")
+            newsPapers[url_short] = {"link": url,
+                                     "media-bias": media_bias_url,
+                                     "fact": fact,
+                                     "bias": bias,
+                                     "N_articles": None,
+                                     "articles": []}
     return newsPapers
 
-def ReadTheNews(details, verbose = False):
+def ReadTheNews(details, verbose=False):
     '''
         Function to ring URL, download all articles + misc. details
     '''
@@ -75,7 +77,8 @@ def ReadTheNews(details, verbose = False):
         newsPaper['N_articles'] = paper.size()
 
         if verbose:
-            print(company, "total number of articles:", newsPaper['N_articles'])
+            print(company, "total number of articles:",
+                  newsPaper['N_articles'])
 
         count = 0
         for content in paper.articles:
@@ -93,7 +96,7 @@ def ReadTheNews(details, verbose = False):
             article['title'] = content.title
             article['authors'] = content.authors
             article['text'] = content.text
-            article['top_image'] =  content.top_image
+            article['top_image'] = content.top_image
             article['movies'] = content.movies
             article['link'] = content.url
             article['published'] = content.publish_date
@@ -110,7 +113,8 @@ def ReadTheNews(details, verbose = False):
             articles.append(article)
 
             if verbose:
-                print(count, "articles downloaded from", company, " using newspaper, url: ", content.url)
+                print(count, "articles downloaded from", company,
+                      " using newspaper, url: ", content.url)
             count = count + 1
 
         # Save data to pkl file
@@ -118,17 +122,18 @@ def ReadTheNews(details, verbose = False):
         with open("data/raw/{}".format(fileName), "wb") as fid:
             pickle.dump([company, newsPaper], fid)
 
-        print("... finished {} total articles {}".format(company,len(articles)))
+        print("... finished {} total articles {}".format(company, len(articles)))
         return 1
 
     except Exception as E:
         print(traceback.format_exc())
         return 0
 
+
 if __name__ == '__main__':
 
     if len(sys.argv) > 1:
-        newsPapers = load_labeled_data(fileName = sys.argv[1])
+        newsPapers = load_labeled_data(fileName=sys.argv[1])
     else:
         newsPapers = load_labeled_data()
 

@@ -16,6 +16,7 @@ import tensorflow as tf
 
 app = Flask(__name__)
 
+
 ####################  Home-page   ##########################
 @app.route("/", methods=['GET', 'POST'])
 def home():
@@ -39,6 +40,7 @@ def home():
         return redirect(url_for('result'))
 
     return render_template("index.html")
+
 
 ####################  Isolated search page   ##########################
 @app.route('/text/', methods=['GET', 'POST'])
@@ -64,28 +66,33 @@ def article_query():
 
     return render_template("text.html")
 
+
 ####################  About doc2vec   ##########################
 @app.route('/about/', methods=['GET', 'POST'])
 def about_fake2vec():
     return render_template("about.html")
+
+
 ####################  Call  doc2vec   ##########################
 @app.route('/query/', methods=['GET', 'POST'])
 def try_another_query():
     return render_template("text.html")
 
+
 ##############################################
 def create_fig(labels, sizes, tag):
     params = {
-          'backend': 'ps',
-		  'lines.markersize'  : 6,
-	      'axes.labelsize': 12,
-	      'legend.fontsize': 12,
-	      'xtick.labelsize': 12,
-	      'ytick.labelsize': 12,
-	      'font.serif'    : 'Roboto',
-	  	  'font.sans-serif': 'Roboto',
-	      'text.usetex': True,
-	      'figure.dpi'       : 600}
+        'backend': 'ps',
+        'lines.markersize': 6,
+        'axes.labelsize': 12,
+        'legend.fontsize': 12,
+        'xtick.labelsize': 12,
+        'ytick.labelsize': 12,
+        'font.serif': 'Roboto',
+        'font.sans-serif': 'Roboto',
+        'text.usetex': True,
+        'figure.dpi': 600
+    }
     # Figure
     fig = Figure()
     fig.set_tight_layout(True)
@@ -99,18 +106,23 @@ def create_fig(labels, sizes, tag):
         values = ['HIGH', 'MIXED', 'LOW']
         colors = ["g", 'y', 'r']
     else:
-        values = ['extreme-left', 'left', 'left-center', 'center', 'right-center', 'right', 'extreme-right']
+        values = [
+            'extreme-left', 'left', 'left-center', 'center', 'right-center',
+            'right', 'extreme-right'
+        ]
         #cmap = matplotlib.cm.get_cmap('seismic')
         #z = list(range(len(sizes)))
         #normalize = matplotlib.colors.Normalize(vmin=min(z), vmax=max(z))
         #colors = [cmap(normalize(value)) for value in z]
-        colors = [  (0.0, 0.0, 0.3, 1.0),
-                    (0.0, 0.0, 0.7611764705882352, 1.0),
-                    (0.3333333333333333, 0.3333333333333333, 1.0, 1.0),
-                    '#dddddd', #(1.0, 0.9921568627450981, 0.9921568627450981, 1.0),
-                    (1.0, 0.33333333333333337, 0.33333333333333337, 1.0),
-                    (0.8294117647058823, 0.0, 0.0, 1.0),
-                    (0.5, 0.0, 0.0, 1.0)    ]
+        colors = [
+            (0.0, 0.0, 0.3, 1.0),
+            (0.0, 0.0, 0.7611764705882352, 1.0),
+            (0.3333333333333333, 0.3333333333333333, 1.0, 1.0),
+            '#dddddd',  #(1.0, 0.9921568627450981, 0.9921568627450981, 1.0),
+            (1.0, 0.33333333333333337, 0.33333333333333337, 1.0),
+            (0.8294117647058823, 0.0, 0.0, 1.0),
+            (0.5, 0.0, 0.0, 1.0)
+        ]
 
     colors = [colors[values.index(x)] for x in labels]
 
@@ -120,19 +132,21 @@ def create_fig(labels, sizes, tag):
     def my_list(data, labs):
         list = []
         for i in range(len(data)):
-            if (data[i]*100.0/sum(data)) > 2: #2%
+            if (data[i] * 100.0 / sum(data)) > 2:  #2%
                 list.append(labs[i])
             else:
                 list.append('')
         return list
 
     # Pie chart
-    wedges, texts, autotexts = ax.pie(sizes, labels=my_list(sizes, labels),
-                                        colors=colors,
-                                        autopct=my_autopct,
-                                        shadow=False,
-                                        startangle=140,
-                                        wedgeprops={'alpha':0.5})
+    wedges, texts, autotexts = ax.pie(
+        sizes,
+        labels=my_list(sizes, labels),
+        colors=colors,
+        autopct=my_autopct,
+        shadow=False,
+        startangle=140,
+        wedgeprops={'alpha': 0.5})
     canvas = FigureCanvas(fig)
     #canvas.figure.tight_layout()
     png_output = io.BytesIO()
@@ -144,6 +158,7 @@ def create_fig(labels, sizes, tag):
     #png_output.close()
     #plt.close(fig)
     return data_url
+
 
 ####################  Call results page   ##########################
 @app.route("/result/", methods=['GET', 'POST'])
@@ -160,13 +175,22 @@ def result():
     # Summary field
     if 'LOW' in facts[0][0] and 'extreme' in affiliation[0][0]:
         summary = "WARNING! Article could be fake news."
+    elif 'LOW' in facts[0][0]:
+        summary = "WARNING! Article may have low factual content but is not \
+                    politically extreme."
+
     elif 'MIXED' in facts[0][0]:
         if 'left' == affiliation[0][0] or 'right' == affiliation[0][0]:
-            summary = "Article may have factual inconsistencies and a political lean."
+            summary = "Article may have factual inconsistencies and a \
+                        political lean."
+
         else:
-            summary = "Article may have factual inconsistencies but does not appear to have a strong political lean."
+            summary = "Article may have factual inconsistencies but does not \
+                        appear to have a strong political lean."
+
     else:
-        summary = "Article appears factually correct and does not have a strong political lean."
+        summary = "Article appears factually correct and does not have a \
+                    strong political lean."
 
     # facts figure
     labels, sizes = zip(*facts)
@@ -177,14 +201,16 @@ def result():
     affil_fig = create_fig(labels, sizes, "img2")
 
     # load into result page
-    return render_template("result.html",
-                            query = cleaned_query,
-                            summary = summary,
-                            result1 = facts_fig,
-                            result2 = affil_fig,
-                            publisher = pubs_decode,
-                            fact_input = facts,
-                            bias_input = affiliation)
+    return render_template(
+        "result.html",
+        query=cleaned_query,
+        summary=summary,
+        result1=facts_fig,
+        result2=affil_fig,
+        publisher=pubs_decode,
+        fact_input=facts,
+        bias_input=affiliation)
+
 
 if __name__ == "__main__":
-    app.run(debug=True,host='0.0.0.0')
+    app.run(debug=True, host='0.0.0.0')

@@ -13,7 +13,7 @@ from keras.regularizers import l1, l2
 
 class doc2vec:
     '''
-    Custom doc2vec class to handle gensim doc2vec model
+        Custom doc2vec class to handle gensim doc2vec model
     '''
 
     def __init__(self, DOC2VEC_MODEL=None, vec_size=1000, window=300,
@@ -27,14 +27,13 @@ class doc2vec:
 
         self.alpha = alpha
         self.min_alpha = min_alpha
-
         self.cores = cores
 
         self.load()
 
     def load(self):
         '''
-        Load model either from weight file or initiate model
+            Load model either from weight file or initiate model
         '''
         if self.weights_path:
             self.model = Doc2Vec.load(self.weights_path)
@@ -53,7 +52,7 @@ class doc2vec:
     def doc_vectors(self, tagged_docs, label_index=0, reinfer_train=False,
                     infer_steps=5, infer_alpha=None, min_words=1):
         '''
-        Method to take text -> doc vector
+            Method to take text -> doc vector
         '''
         docvals = tagged_docs.values
         docvals = [doc for doc in docvals if len(doc.words) >= min_words]
@@ -91,7 +90,8 @@ class doc2vec:
 
 class KerasClassifier:
     '''
-    Classifier model that takes doc vectors as input and predicts [pub, fact, lean] labels
+        Classifier model that takes doc vectors as input 
+        and predicts [pub, fact, lean] labels
     '''
 
     def __init__(self, word_vector_dim, N_classes, N_fact=3, N_bias=7):
@@ -136,7 +136,7 @@ class KerasClassifier:
 
 class Fake2Vec:
     '''
-    Class to combine the doc2vec and classifier models into bulk model
+        Class to combine the doc2vec and classifier models into bulk model
     '''
 
     def __init__(self, infer_steps=20, datapath='./'):
@@ -172,16 +172,13 @@ class Fake2Vec:
                        for bias_score, decoded in sorted(zip(bias[0], self.bias_decode))[::-1]]
         return pubs_decode, facts, affiliation
 
-# class app_loader:
-# load model in self, main a method
-
 
 def main(X, infer_steps=20, path='../'):
     '''
-    This is called in app/main.py any time a query is initiated. 
-    and loads the model each time, wasteful. Could not figure out how 
-    to resolve (apparent) threading problems b/t flask and gensims doc2vec.
-    So leaving as is ... slow but not TERRIBLY slow for the user. 
+        This is called in app/main.py any time a query is initiated. 
+        and loads the model each time, wasteful. Could not figure out how 
+        to resolve (apparent) threading problems b/t flask and gensims doc2vec.
+        So leaving as is ... slow but not TERRIBLY slow for the user. 
     '''
     model = Fake2Vec(infer_steps=infer_steps, datapath=path)
     result = model.predict(X)
@@ -190,7 +187,6 @@ def main(X, infer_steps=20, path='../'):
 
 
 if __name__ == '__main__':
-
     X = str(sys.argv[1])
     infer_steps = 20
 
