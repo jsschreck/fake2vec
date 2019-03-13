@@ -46,17 +46,11 @@ def load_data(doc2vec_training_csv='data/Doc2vecTrainingData.csv',
         # Load the training articles + labels
         data = WordsContainer()
         data.load(doc2vec_preprocessed)
-        myVocab = data.words
         myArticles = data.articles
 
         companies = myArticles.keys()
-        N_classes = len(companies)
         company_to_token = {
             company: k
-            for k, company in zip(range(len(companies)), companies)
-        }
-        token_to_company = {
-            k: company
             for k, company in zip(range(len(companies)), companies)
         }
 

@@ -12,43 +12,36 @@ Options
 The main scripts listed below each have options (with defaults). To see the options type
 
 ```
-python one_of_the_scripts_below.py --help
+python [one_of_the_scripts_below.py] --help
 ```
 
 Train and deploy fake2vec
 -----------------------------------------------------------------------------------------------
-Launch the following script to create some directories to save data/models. It will then call the relevant scripts to train the doc2vec word embedding and the classifier.
+Launch the following shell script to train a doc2vec word embedding and a neural classifier.
 
 ```
 sh launch.sh
 ```
 -----------------------------------------------------------------------------------------------
-You can also do it one step at a time. First, make some directories:
-
-```
-mkdir data models reports results
-mkdir models/classifier models/doc2vec
-```
-
-Next, scrape the publisher list provided by MSFC:
+You can also do it one step at a time. First, scrape the publisher list provided by MSFC:
 
 ```
 python utils/scrape_publisher.py
 ```
 
-Prepare the scraped data for training:
+Next, prepare the scraped data for training:
 
 ```
 python utils/text_processor.py
 ```
 
-Train the doc2vec embedding:
+Now train the doc2vec embedding:
 
 ```
 python utils/train_doc2vec.py
 ```
 
-Train the neural classifier model:
+Then train a classifier model:
 
 ```
 python utils/train_classifier.py
